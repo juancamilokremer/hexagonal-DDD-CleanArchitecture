@@ -110,57 +110,84 @@ Never: Domain → Application, Domain → Infrastructure
 
 ```
 src/
-├── main/java/com/example/orderservice/
+├── main/
+│   ├── java/com/example/orderservice/
+│   │   │
+│   │   ├── OrderServiceApplication.java              ← Spring Boot entry point
+│   │   │
+│   │   ├── domain/                                   ← Pure Java, zero framework imports
+│   │   │   ├── event/
+│   │   │   │   └── OrderShippedEvent.java             ← Domain Event (record)
+│   │   │   ├── exception/
+│   │   │   │   ├── InvalidOrderStateException.java
+│   │   │   │   └── OrderNotFoundException.java
+│   │   │   ├── model/
+│   │   │   │   ├── Order.java                        ← Aggregate Root
+│   │   │   │   └── OrderStatus.java                  ← Enum: CREATED, SHIPPED, CANCELLED
+│   │   │   └── repository/
+│   │   │       └── OrderRepository.java              ← Output Port (interface)
+│   │   │
+│   │   ├── application/                              ← Orchestration, no Spring
+│   │   │   ├── port/
+│   │   │   │   └── out/
+│   │   │   │       └── OrderEventPublisher.java      ← Output Port (interface)
+│   │   │   └── usecase/
+│   │   │       ├── CancelOrderUseCase.java           ← Input Port (interface)
+│   │   │       ├── CreateOrderUseCase.java           ← Input Port (interface)
+│   │   │       ├── GetOrderUseCase.java              ← Input Port (interface)
+│   │   │       ├── ShipOrderUseCase.java             ← Input Port (interface)
+│   │   │       ├── command/
+│   │   │       │   └── CreateOrderCommand.java       ← Command Object (POJO)
+│   │   │       └── impl/
+│   │   │           ├── CancelOrderUseCaseImpl.java
+│   │   │           ├── CreateOrderUseCaseImpl.java
+│   │   │           ├── GetOrderUseCaseImpl.java
+│   │   │           └── ShipOrderUseCaseImpl.java
+│   │   │
+│   │   └── infrastructure/                           ← All framework/technology code
+│   │       ├── adapter/
+│   │       │   ├── in/                               ← Input Adapters (drive the app)
+│   │       │   │   ├── OrderController.java          ← REST Controller (4 endpoints)
+│   │       │   │   ├── dto/
+│   │       │   │   │   ├── ApiErrorResponse.java
+│   │       │   │   │   ├── CreateOrderRequest.java   ← @Valid input DTO + @Schema
+│   │       │   │   │   └── OrderResponse.java        ← Output DTO + @Schema
+│   │       │   │   ├── event/
+│   │       │   │   │   └── OrderShippedEventListener.java ← @EventListener (logs event)
+│   │       │   │   └── exception/
+│   │       │   │       └── GlobalExceptionHandler.java   ← @RestControllerAdvice
+│   │       │   └── out/                              ← Output Adapters (driven by the app)
+│   │       │       ├── event/
+│   │       │       │   └── SpringOrderEventPublisher.java ← Wraps ApplicationEventPublisher
+│   │       │       ├── inmemory/
+│   │       │       │   └── InMemoryOrderRepository.java  ← @Profile("inmemory")
+│   │       │       └── persistence/
+│   │       │           ├── OrderJpaEntity.java       ← @Entity (not a domain object)
+│   │       │           ├── OrderJpaRepository.java   ← Spring Data JPA interface
+│   │       │           ├── OrderMapper.java          ← JPA Entity ↔ Domain Object
+│   │       │           └── OrderPersistenceAdapter.java ← @Profile("!inmemory")
+│   │       └── config/
+│   │           ├── ApplicationConfig.java            ← @Bean wiring for all use cases
+│   │           └── OpenApiConfig.java                ← Swagger / OpenAPI metadata
 │   │
-│   ├── OrderServiceApplication.java          ← Spring Boot entry point
-│   │
-│   ├── domain/                               ← Pure Java, zero framework imports
-│   │   ├── model/
-│   │   │   ├── Order.java                    ← Aggregate Root
-│   │   │   └── OrderStatus.java              ← Enum: CREATED, SHIPPED
-│   │   ├── exception/
-│   │   │   ├── OrderNotFoundException.java
-│   │   │   └── InvalidOrderStateException.java
-│   │   └── repository/
-│   │       └── OrderRepository.java          ← Output Port (interface)
-│   │
-│   ├── application/                          ← Orchestration, no business logic
-│   │   └── usecase/
-│   │       ├── CreateOrderUseCase.java        ← Input Port (interface)
-│   │       ├── ShipOrderUseCase.java          ← Input Port (interface)
-│   │       ├── GetOrderUseCase.java           ← Input Port (interface)
-│   │       ├── command/
-│   │       │   └── CreateOrderCommand.java    ← Command Object (POJO)
-│   │       └── impl/
-│   │           ├── CreateOrderUseCaseImpl.java
-│   │           ├── ShipOrderUseCaseImpl.java
-│   │           └── GetOrderUseCaseImpl.java
-│   │
-│   └── infrastructure/                       ← All framework/technology code
-│       ├── adapter/
-│       │   ├── in/                           ← Input Adapters (drive the app)
-│       │   │   ├── OrderController.java       ← REST Controller
-│       │   │   ├── dto/
-│       │   │   │   ├── CreateOrderRequest.java
-│       │   │   │   ├── OrderResponse.java
-│       │   │   │   └── ApiErrorResponse.java
-│       │   │   └── exception/
-│       │   │       └── GlobalExceptionHandler.java
-│       │   └── out/                          ← Output Adapters (driven by the app)
-│       │       └── persistence/
-│       │           ├── OrderJpaEntity.java    ← JPA Entity (not a domain object)
-│       │           ├── OrderJpaRepository.java← Spring Data interface
-│       │           ├── OrderMapper.java       ← JPA Entity ↔ Domain Object
-│       │           └── OrderPersistenceAdapter.java ← Implements OrderRepository
-│       └── config/
-│           └── ApplicationConfig.java        ← @Bean wiring for use cases
-│
-├── resources/
-│   └── application.properties               ← H2, JPA, logging config
+│   └── resources/
+│       ├── application.properties                    ← Common config + spring.profiles.active=dev
+│       ├── application-dev.properties                ← H2 datasource, H2 console, create-drop
+│       └── application-prod.properties               ← PostgreSQL via env vars, ddl-auto=validate
 │
 └── test/java/com/example/orderservice/
-    └── domain/model/
-        └── OrderTest.java                   ← 4 unit tests, no Spring context
+    ├── domain/model/
+    │   └── OrderTest.java                            ← 7 unit tests (no Spring)
+    ├── application/usecase/impl/
+    │   ├── CancelOrderUseCaseImplTest.java           ← 7 unit tests (Mockito)
+    │   ├── CreateOrderUseCaseImplTest.java           ← 4 unit tests (Mockito)
+    │   ├── GetOrderUseCaseImplTest.java              ← 3 unit tests (Mockito)
+    │   └── ShipOrderUseCaseImplTest.java             ← 9 unit tests (Mockito)
+    └── infrastructure/
+        ├── adapter/in/
+        │   └── OrderControllerIntegrationTest.java   ← 11 integration tests (@SpringBootTest)
+        └── adapter/out/inmemory/
+            └── InMemoryOrderRepositoryTest.java      ← 6 unit tests (no Spring)
 ```
 
 ---
